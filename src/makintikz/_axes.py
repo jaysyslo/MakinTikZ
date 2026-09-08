@@ -152,7 +152,6 @@ class MyAxes:
             self._subplot()
 
         data.current_axis_options = set()  # Reset axis options
-        data.rectangle_legends = set()     # Reset per-axis legend dedup tracking
 
         self._set_hide_axis()
         self._set_plot_title()
@@ -180,7 +179,6 @@ class MyAxes:
             return
 
         self.data.current_axis_options = set()
-        self.data.rectangle_legends = set()     # Reset per-axis legend dedup tracking
 
         xlim, ylim = self._set_axis_limits()
 
