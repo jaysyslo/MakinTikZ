@@ -429,6 +429,22 @@ def _should_skip_child(obj: Artist, child: Artist) -> bool:
     return type(child).__name__ == "_WCSAxesArtist"
 
 
+def _axes_geom_index(ax: Axes) -> int:
+    """Grid position (0-based) for an Axes with a subplotspec; -1 otherwise."""
+    subplotspec = ax.get_subplotspec()
+    if subplotspec is None:
+        return -1
+    return int(subplotspec.get_topmost_subplotspec().get_geometry()[2])
+
+
+def _sort_children_by_subplot_index(children: list[Artist]) -> list[Artist]:
+    """Sort children by subplot index, with non-Axes children first."""
+    return sorted(
+        children,
+        key=lambda c: _axes_geom_index(c) if isinstance(c, Axes) else -1,
+    )
+
+
 def _recurse(data: TikzData, obj: Artist) -> list:
     """Iterates over all children of the current object and gathers the contents.
 
@@ -439,7 +455,7 @@ def _recurse(data: TikzData, obj: Artist) -> list:
     if isinstance(obj, Figure):
         _set_default_axis_dimensions_from_figure(data, obj)
 
-    for child in obj.get_children():
+    for child in _sort_children_by_subplot_index(obj.get_children()):
         if _should_skip_child(obj, child):
             continue
 
