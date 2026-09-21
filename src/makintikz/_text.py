@@ -47,9 +47,15 @@ def draw_text(data: TikzData, obj: Text) -> list[str]:
 
     text = obj.get_text()
 
-    if text in ["", data.current_axis_title]:
-        # Text nodes which are direct children of Axes are typically titles.  They are
-        # already captured by the `title` property of pgfplots axes, so skip them here.
+    if (
+        obj.axes is not None
+        and obj
+        in (
+            obj.axes.title,
+            getattr(obj.axes, "_left_title", None),
+            getattr(obj.axes, "_right_title", None),
+        )
+    ) or text == "":
         return content
 
     size = obj.get_fontsize()
@@ -101,7 +107,7 @@ def draw_text(data: TikzData, obj: Text) -> list[str]:
         # to do that. On the other hand, newlines should translate into
         # newlines.
         # We might want to remove this here in the future.
-        text = text.replace("\n ", "\\\\")
+        text = text.replace("\n", "\\\\")
 
     props = ",\n  ".join(properties)
     text = " ".join([*style, text])
