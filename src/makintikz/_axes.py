@@ -266,6 +266,8 @@ class MyAxes:
             if yrotation != 90:  # noqa: PLR2004
                 self.data.current_axis_options.add(f"ylabel style={{rotate={yrotation - 90}}}")
 
+        # TODO: add zlabel handling
+
     def _set_axis_limits(self) -> tuple[list[float], list[float], list[float] | None]:
         ff = self.data.float_format
         xlim = list(self.obj.get_xlim())
@@ -374,6 +376,7 @@ class MyAxes:
                 self.data.current_axis_options.add("width=" + self.data.axis_width)
 
     def _set_axis_positions(self) -> None:
+        # TODO: confirm this is proper z handling, fix if not
         if self.is_3d:
             return
 
@@ -491,6 +494,7 @@ class MyAxes:
         
 
     def _set_axes_grid(self) -> None:
+        # TODO: add z coordinate handling to this method
         # https://github.com/AlexChrzanowski/MakinTikZ/issues/64
         if self.obj.figure is not None:
             axes = [ax for ax in self.obj.figure.get_axes() if type(ax) is type(self.obj)]
@@ -531,7 +535,7 @@ class MyAxes:
             self.data.pgfplots_libs.add("groupplots")
 
     def _set_axis_line_styles(self) -> None:
-        if self.is_3d: # TODO: review this section
+        if self.is_3d:
             # Axes3D stores boundary lines on the individual 3D axis objects
             line = getattr(self.obj.xaxis, "line", None)
             if line is not None:
