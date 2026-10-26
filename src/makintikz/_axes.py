@@ -12,6 +12,7 @@ from matplotlib.axes import Subplot
 from matplotlib.colorbar import Colorbar
 from matplotlib.colors import Colormap, LinearSegmentedColormap, ListedColormap
 from matplotlib.ticker import ScalarFormatter
+from mpl_toolkits.axes_grid1.mpl_axes import Axes as AxesGrid
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 
 from . import _color
@@ -153,6 +154,9 @@ class MyAxes:
 
         if isinstance(obj, Subplot):
             self._subplot()
+
+        if isinstance(obj, AxesGrid):
+            self._set_axes_grid()
 
         data.current_axis_options = set()  # Reset axis options
 
@@ -336,8 +340,6 @@ class MyAxes:
             if self.data.axis_height:
                 self.data.current_axis_options.add("height=" + self.data.axis_height)
             return
-
-            # TODO: investigate if alpha part necessary, also if we need zlim as argument
         
         if aspect_num == 1.0:
             # Equal aspect (e.g. set_aspect("equal")): ensure circles appear round
@@ -372,7 +374,6 @@ class MyAxes:
                 self.data.current_axis_options.add("width=" + self.data.axis_width)
 
     def _set_axis_positions(self) -> None:
-        # This is temporary and may not be the best handling for 3d plots.
         if self.is_3d:
             return
 
@@ -487,6 +488,47 @@ class MyAxes:
                     orphan_style_line=z_orphan,
                 ),
             )
+        
+
+    def _set_axes_grid(self) -> None:
+        # https://github.com/AlexChrzanowski/MakinTikZ/issues/64
+        if self.obj.figure is not None:
+            axes = [ax for ax in self.obj.figure.get_axes() if type(ax) is type(self.obj)]
+            if len(axes) > 1:
+                self.is_subplot = True
+            else:
+                return
+        else:
+            return
+
+        # locator_cols and locator_rows ensures that plots in the same row/col
+        # are not double-counted.
+        locator_cols = set()
+        locator_rows = set()
+        col_size = 0
+        row_size = 0
+
+        for ax in axes:
+            loc = getattr(ax.get_axes_locator(), "args", None)  # nx, ny, nx1, ny1
+            if loc is None:
+                continue
+            x_coords = (loc[2], loc[0])
+            y_coords = (loc[3], loc[1])
+
+            if x_coords not in locator_cols and loc[2] - loc[0] > 0:
+                locator_cols.add(x_coords)
+                col_size += 1
+            if y_coords not in locator_rows and loc[3] - loc[1] > 0:
+                locator_rows.add(y_coords)
+                row_size += 1
+
+        if not self.data.is_in_groupplot_env:
+            group_style = [f"group size={col_size} by {row_size}"]
+            group_style.extend(self.data.extra_groupstyle_options)
+            options = ["group style={{{}}}".format(", ".join(group_style))]
+            self.content.append(self.data.flavor.start("groupplot") + f"[{', '.join(options)}]")
+            self.data.is_in_groupplot_env = True
+            self.data.pgfplots_libs.add("groupplots")
 
     def _set_axis_line_styles(self) -> None:
         if self.is_3d: # TODO: review this section
@@ -1311,7 +1353,19 @@ def _handle_listed_color_map(cmap: ListedColormap, data: TikzData) -> tuple[str,
     }
     for mpl_cm_name, pgf_cm in cm_translate.items():
         mpl_cm = plt.get_cmap(mpl_cm_name)
-        if isinstance(mpl_cm, ListedColormap) and cmap.colors == mpl_cm.colors:
+        if isinstance(mpl_cm, ListedColormap):
+            arr_mpl_cm = np.asarray(mpl_cm.colors)
+        arr_cmap = np.asarray(cmap.colors)
+
+        are_arrays_equal = False
+        if (np.shape(arr_cmap)[1]) > np.shape(arr_mpl_cm)[1]:
+            # truncates columns to match the expected rgb column values
+            arr_cmap = arr_cmap[:, :3]
+            are_arrays_equal = np.array_equal(arr_cmap, arr_mpl_cm)
+        elif np.shape(arr_cmap) == np.shape(arr_mpl_cm):
+            are_arrays_equal = mpl_cm == cmap
+
+        if are_arrays_equal:
             is_custom_colormap = False
             return pgf_cm, is_custom_colormap
 
@@ -1325,7 +1379,7 @@ def _handle_listed_color_map(cmap: ListedColormap, data: TikzData) -> tuple[str,
         colors = [
             f"rgb({k}{unit})=({rgb[0]:{ff}},{rgb[1]:{ff}},{rgb[2]:{ff}})"
             for k, rgb in enumerate(cmap.colors)
-            if isinstance(rgb, list)
+            if isinstance(rgb, (list, np.ndarray))
         ]
     elif isinstance(cmap.colors, list):
         reps = int(float(cmap.N) / len(cmap.colors) - 0.5) + 1
